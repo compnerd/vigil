@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 import ArgumentParser
-import Foundation
+import FoundationEssentials
 import WindowsCore
 
 private var kVigilEvent: String {
