@@ -78,60 +78,14 @@ internal struct Vigil: ParsableCommand {
       try PowerManager.inhibit(.state(always: idle, powered: system, display: display))
       defer { PowerManager.restore() }
 
-      let hJob = CreateJobObjectW(nil, nil)
-      if hJob == HANDLE(bitPattern: 0) { throw WindowsError() }
-      defer { _ = CloseHandle(hJob) }
-
-      let hPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nil, 0, 1)
-      if hPort == HANDLE(bitPattern: 0) { throw WindowsError() }
-
-      var ACPInformation = JOBOBJECT_ASSOCIATE_COMPLETION_PORT()
-      ACPInformation.CompletionKey = hJob
-      ACPInformation.CompletionPort = hPort
-      guard SetInformationJobObject(hJob, JobObjectAssociateCompletionPortInformation,
-                                    &ACPInformation,
-                                    DWORD(MemoryLayout<JOBOBJECT_ASSOCIATE_COMPLETION_PORT>.size)) else {
-        throw WindowsError()
+      let job = try Job.create()
+      let ProcessInformation = try job.launch(command)
+      defer {
+        _ = CloseHandle(ProcessInformation.hThread)
+        _ = CloseHandle(ProcessInformation.hProcess)
       }
 
-      var LimitInformation = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
-      LimitInformation.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK
-      guard SetInformationJobObject(hJob, JobObjectExtendedLimitInformation,
-                                    &LimitInformation,
-                                    DWORD(MemoryLayout<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>.size)) else {
-        throw WindowsError()
-      }
-
-      var StartupInformation = STARTUPINFOW()
-      StartupInformation.cb = DWORD(MemoryLayout<STARTUPINFOW>.size)
-
-      var ProcessInformation = PROCESS_INFORMATION()
-
-      try quote(command).withCString(encodedAs: UTF16.self) { pwszCommandLine in
-        guard CreateProcessW(nil, UnsafeMutablePointer(mutating: pwszCommandLine), nil, nil, false,
-                             CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP,
-                             nil, nil, &StartupInformation, &ProcessInformation) else {
-          throw WindowsError()
-        }
-      }
-
-      defer { _ = CloseHandle(ProcessInformation.hThread) }
-      defer { _ = CloseHandle(ProcessInformation.hProcess) }
-
-      guard AssignProcessToJobObject(hJob, ProcessInformation.hProcess) else {
-        throw WindowsError()
-      }
-
-      if Int(ResumeThread(ProcessInformation.hThread)) < 0 {
-        throw WindowsError()
-      }
-
-      var dwCompletionCode: DWORD = 0
-      var ulCompletionKey: ULONG_PTR = 0
-      var lpOverlapped: LPOVERLAPPED?
-      while GetQueuedCompletionStatus(hPort, &dwCompletionCode, &ulCompletionKey, &lpOverlapped, INFINITE),
-          !(ulCompletionKey == ULONG_PTR(UInt(bitPattern: hJob)) && dwCompletionCode == JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO) {
-      }
+      job.await()
 
       var dwExitCode = DWORD(bitPattern: -1)
       _ = GetExitCodeProcess(ProcessInformation.hProcess, &dwExitCode)
