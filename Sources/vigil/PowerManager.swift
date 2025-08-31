@@ -1,7 +1,7 @@
 // Copyright © 2025 Saleem Abdulrasool <compnerd@compnerd.org>
 // SPDX-License-Identifier: BSD-3-Clause
 
-private import WindowsCore
+internal import WindowsCore
 
 internal enum PowerManager {
   public struct PolicyInhibition {

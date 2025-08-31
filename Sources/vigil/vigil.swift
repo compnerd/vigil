@@ -5,12 +5,8 @@ import ArgumentParser
 import FoundationEssentials
 private import WindowsCore
 
-private var kVigilEvent: String {
-  "Global\\org.compnerd.vigil.signal"
-}
-
 @main
-private struct Vigil: ParsableCommand {
+internal struct Vigil: ParsableCommand {
   public struct Start: ParsableCommand {
     public static var configuration: CommandConfiguration {
       CommandConfiguration(abstract: "Ignore Power Management events until `vigil end` is called.")
@@ -39,46 +35,13 @@ private struct Vigil: ParsableCommand {
     }
 
     public func run() throws {
-      // Create a named event that `vigil end` can signal.
-      var hEvent = kVigilEvent.withCString(encodedAs: UTF16.self) {
-        CreateEventW(nil, true, false, $0)
-      }
-      if hEvent == HANDLE(bitPattern: 0) { throw WindowsError() }
+      let hEvent = try Vigil.begin()
       defer { _ = CloseHandle(hEvent) }
 
       try PowerManager.inhibit(.state(always: idle, powered: system, display: display))
       defer { PowerManager.restore() }
 
-      var hTimer: HANDLE?
-      if let timeout {
-        let pCallback: WAITORTIMERCALLBACK = { lpParameter, _ in
-          let hEvent = lpParameter?.assumingMemoryBound(to: HANDLE.self).pointee
-          _ = SetEvent(hEvent)
-        }
-
-        guard CreateTimerQueueTimer(&hTimer, nil, pCallback, &hEvent,
-                                    DWORD(Duration.seconds(timeout).milliseconds),
-                                    0, WT_EXECUTEINTIMERTHREAD | WT_EXECUTEONLYONCE) else {
-          throw WindowsError()
-        }
-      }
-
-      defer {
-        if let hTimer {
-          _ = DeleteTimerQueueTimer(nil, hTimer, nil)
-        }
-      }
-
-      repeat {
-        switch WaitForSingleObject(hEvent, INFINITE) {
-        case WAIT_OBJECT_0:
-          break
-        case WAIT_FAILED:
-          throw WindowsError()
-        default:
-          continue
-        }
-      } while false
+      try Vigil.stand(hEvent, for: timeout.map(Duration.seconds(_:)))
     }
   }
 
@@ -88,15 +51,7 @@ private struct Vigil: ParsableCommand {
     }
 
     public func run() throws {
-      let hEvent = kVigilEvent.withCString(encodedAs: UTF16.self) {
-        OpenEventW(EVENT_MODIFY_STATE, false, $0)
-      }
-      if hEvent == HANDLE(bitPattern: 0) { throw WindowsError() }
-      defer { _ = CloseHandle(hEvent) }
-
-      guard SetEvent(hEvent) else {
-        throw WindowsError()
-      }
+      try Vigil.end()
     }
   }
 
