@@ -28,8 +28,9 @@ jobs:
 
       - name: Build
         run: |
-          swift build --triple aarch64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${env:SDKROOT} -Xswiftc -static-stdlib
-          swift build --triple x86_64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${env:SDKROOT} -Xswiftc -static-stdlib
+          $ExperimentalSDK = "$(Split-Path -Path ${env:SDKROOT} -Parent)/WindowsExperimental.sdk"
+          swift build --triple aarch64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${ExperimentalSDK} -Xswiftc -static-stdlib
+          swift build --triple x86_64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${ExperimentalSDK} -Xswiftc -static-stdlib
 
       - uses: anchore/sbom-action@v0
         with:
