@@ -3,43 +3,10 @@
 
 import ArgumentParser
 import FoundationEssentials
-import WindowsCore
+private import WindowsCore
 
 private var kVigilEvent: String {
   "Global\\org.compnerd.vigil.signal"
-}
-
-private struct Policy {
-  public let bInhibitIdle: Bool
-  public let bInhibitDisplay: Bool
-
-  public static func settings(idle: Bool, system: Bool, display: Bool) throws -> Policy {
-    return try Self(bInhibitIdle: idle || (system ? PowerManager.IsOnAC : false),
-                    bInhibitDisplay: display)
-  }
-}
-
-private enum PowerManager {
-  public static var IsOnAC: Bool {
-    get throws {
-      var SystemPowerStatus = SYSTEM_POWER_STATUS()
-      guard GetSystemPowerStatus(&SystemPowerStatus) else {
-        throw WindowsError()
-      }
-      return SystemPowerStatus.ACLineStatus == 1
-    }
-  }
-
-  public static func inhibit(_ policy: Policy) {
-    let state = ES_CONTINUOUS
-              | (policy.bInhibitIdle ? ES_SYSTEM_REQUIRED : 0)
-              | (policy.bInhibitDisplay ? ES_DISPLAY_REQUIRED : 0)
-    _ = SetThreadExecutionState(state)
-  }
-
-  public static func restore() {
-    _ = SetThreadExecutionState(ES_CONTINUOUS)
-  }
 }
 
 @main
@@ -79,7 +46,7 @@ private struct Vigil: ParsableCommand {
       if hEvent == HANDLE(bitPattern: 0) { throw WindowsError() }
       defer { _ = CloseHandle(hEvent) }
 
-      try PowerManager.inhibit(.settings(idle: idle, system: system, display: display))
+      try PowerManager.inhibit(.state(always: idle, powered: system, display: display))
       defer { PowerManager.restore() }
 
       var hTimer: HANDLE?
@@ -153,7 +120,7 @@ private struct Vigil: ParsableCommand {
     public func run() throws {
       if command.isEmpty { throw CleanExit.helpRequest() }
 
-      try PowerManager.inhibit(.settings(idle: idle, system: system, display: display))
+      try PowerManager.inhibit(.state(always: idle, powered: system, display: display))
       defer { PowerManager.restore() }
 
       let hJob = CreateJobObjectW(nil, nil)
