@@ -3,7 +3,27 @@
 
 import ArgumentParser
 import FoundationEssentials
-private import WindowsCore
+internal import WindowsCore
+
+private struct SleepInhibitionOptions: ParsableArguments {
+  @Flag(name: .shortAndLong,
+        help: "Inhibit display sleep while the command is running.")
+  public var display: Bool = false
+
+  @Flag(name: .shortAndLong,
+        help: "Inhibit system idle sleep while the command is running.")
+  public var idle: Bool = false
+
+  @Flag(name: .shortAndLong,
+        help: "Inhibit system idle sleep on AC while the command is running.")
+  public var system: Bool = false
+
+  public func validate() throws {
+    guard idle || display || system else {
+      throw ValidationError("at least one of `--idle`, `--system`, or `--display` must be specified")
+    }
+  }
+}
 
 @main
 internal struct Vigil: ParsableCommand {
@@ -12,33 +32,20 @@ internal struct Vigil: ParsableCommand {
       CommandConfiguration(abstract: "Ignore Power Management events until `vigil end` is called.")
     }
 
-    @Flag(name: .shortAndLong,
-          help: "Inhibit display sleep while the command is running.")
-    public var display: Bool = false
-
-    @Flag(name: .shortAndLong,
-          help: "Inhibit system idle sleep while the command is running.")
-    public var idle: Bool = false
-
-    @Flag(name: .shortAndLong,
-          help: "Inhibit system idle sleep on AC while the command is running.")
-    public var system: Bool = false
+    @OptionGroup
+    private var inhibition: SleepInhibitionOptions
 
     @Option(name: .shortAndLong,
             help: "Timeout in seconds for the Power Management Policy suspension.")
     public var timeout: UInt?
 
-    public func validate() throws {
-      guard idle || display || system else {
-        throw ValidationError("at least one of `--idle`, `--system`, or `--display` must be specified")
-      }
-    }
-
     public func run() throws {
       let hEvent = try Vigil.begin()
       defer { _ = CloseHandle(hEvent) }
 
-      try PowerManager.inhibit(.state(always: idle, powered: system, display: display))
+      try PowerManager.inhibit(.state(always: inhibition.idle,
+                                      powered: inhibition.system,
+                                      display: inhibition.display))
       defer { PowerManager.restore() }
 
       try Vigil.stand(hEvent, for: timeout.map(Duration.seconds(_:)))
@@ -56,17 +63,8 @@ internal struct Vigil: ParsableCommand {
   }
 
   public struct Stand: ParsableCommand {
-    @Flag(name: .shortAndLong,
-          help: "Inhibit display sleep while the command is running.")
-    public var display: Bool = false
-
-    @Flag(name: .shortAndLong,
-          help: "Inhibit system idle sleep while the command is running.")
-    public var idle: Bool = false
-
-    @Flag(name: .shortAndLong,
-          help: "Inhibit system idle sleep on AC while the command is running.")
-    public var system: Bool = false
+    @OptionGroup
+    private var inhibition: SleepInhibitionOptions
 
     @Argument(parsing: .remaining,
               help: "Run command while preventing power management events. Use `--` before the command.")
@@ -75,7 +73,9 @@ internal struct Vigil: ParsableCommand {
     public func run() throws {
       if command.isEmpty { throw CleanExit.helpRequest() }
 
-      try PowerManager.inhibit(.state(always: idle, powered: system, display: display))
+      try PowerManager.inhibit(.state(always: inhibition.idle,
+                                      powered: inhibition.system,
+                                      display: inhibition.display))
       defer { PowerManager.restore() }
 
       let job = try Job.create()
