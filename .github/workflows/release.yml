@@ -23,7 +23,7 @@ jobs:
         uses: compnerd/gha-setup-swift@main
         with:
           swift-version: development
-          swift-build: DEVELOPMENT-SNAPSHOT-2025-08-29-a
+          swift-build: DEVELOPMENT-SNAPSHOT-2025-08-27-a
           update-sdk-modules: true
 
       - name: Build
