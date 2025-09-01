@@ -34,9 +34,7 @@ jobs:
 
       - uses: anchore/sbom-action@v0
         with:
-          path: |
-            .build/aarch64-unknown-windows-msvc/release/vigil.exe
-            .build/x86_64-unknown-windows-msvc/release/vigil.exe
+          path: .
           output-file: sbom.spdx.json
 
       - uses: actions/attest-build-provenance@v3
