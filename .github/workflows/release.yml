@@ -1,23 +1,28 @@
 name: Release
 
 on:
-  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
   push:
     tags:
-      - '*'
+      - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
   attestations: write
 
 jobs:
-  release:
+  build:
     runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: ${{ github.workspace }}/SourceCache/vigil
 
       - name: Setup Swift
         uses: compnerd/gha-setup-swift@main
@@ -26,36 +31,50 @@ jobs:
           swift-build: DEVELOPMENT-SNAPSHOT-2025-08-27-a
           update-sdk-modules: true
 
-      - name: Build
+      - working-directory: ${{ github.workspace }}/SourceCache/vigil
+        run: |
+          $ExperimentalSDK = "$(Split-Path -Path ${env:SDKROOT} -Parent)/WindowsExperimental.sdk"
+          swift build --triple x86_64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${ExperimentalSDK} -Xswiftc -static-stdlib
+
+      - working-directory: ${{ github.workspace }}/SourceCache/vigil
         run: |
           $ExperimentalSDK = "$(Split-Path -Path ${env:SDKROOT} -Parent)/WindowsExperimental.sdk"
           swift build --triple aarch64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${ExperimentalSDK} -Xswiftc -static-stdlib
-          swift build --triple x86_64-unknown-windows-msvc -debug-info-format none -c release -Xswiftc -sdk -Xswiftc ${ExperimentalSDK} -Xswiftc -static-stdlib
 
       - uses: anchore/sbom-action@v0
         with:
-          path: .
+          dependency-snapshot: true
+          path: ${{ github.workspace }}/SourceCache/vigil
           output-file: sbom.spdx.json
 
       - uses: actions/attest-build-provenance@v3
         with:
           subject-path: |
-            .build/aarch64-unknown-windows-msvc/release/vigil.exe
-            .build/x86_64-unknown-windows-msvc/release/vigil.exe
+            ${{ github.workspace }}/SourceCache/vigil/.build/aarch64-unknown-windows-msvc/release/vigil.exe
+            ${{ github.workspace }}/SourceCache/vigil/.build/x86_64-unknown-windows-msvc/release/vigil.exe
 
       - uses: actions/attest-sbom@v3
         with:
           subject-path: |
-            .build/aarch64-unknown-windows-msvc/release/vigil.exe
-            .build/x86_64-unknown-windows-msvc/release/vigil.exe
+            ${{ github.workspace }}/SourceCache/vigil/.build/aarch64-unknown-windows-msvc/release/vigil.exe
+            ${{ github.workspace }}/SourceCache/vigil/.build/x86_64-unknown-windows-msvc/release/vigil.exe
           sbom-path: sbom.spdx.json
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-aarch64-vigil
-          path: .build/aarch64-unknown-windows-msvc/release/vigil.exe
+      - if: github.ref_type == 'tag'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} -R ${{ github.repository }} --draft --prerelease
+          gh release upload ${{ github.ref_name }} "${{ github.workspace }}/SourceCache/vigil/.build/aarch64-unknown-windows-msvc/release/vigil.exe#Windows ARM64" -R ${{ github.repository }}
+          gh release upload ${{ github.ref_name }} "${{ github.workspace }}/SourceCache/vigil/.build/x86_64-unknown-windows-msvc/release/vigil.exe#Windows x86_64" -R ${{ github.repository }}
+          gh release upload ${{ github.ref_name }} sbom.spdx.json -R ${{ github.repository }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-x86_64-vigil
-          path: .build/x86_64-unknown-windows-msvc/release/vigil.exe
+          name: windows-aarch64
+          path: ${{ github.workspace }}/SourceCache/vigil/.build/aarch64-unknown-windows-msvc/release/vigil.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: ${{ github.workspace }}/SourceCache/vigil/.build/x86_64-unknown-windows-msvc/release/vigil.exe
