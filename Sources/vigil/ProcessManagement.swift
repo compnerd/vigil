@@ -69,7 +69,7 @@ internal struct Job: ~Copyable {
 
     var ProcessInformation = PROCESS_INFORMATION()
 
-    try quote(command).withCString(encodedAs: UTF16.self) { pwszCommandLine in
+    try CommandLine.quote(command).withCString(encodedAs: UTF16.self) { pwszCommandLine in
       guard CreateProcessW(nil, UnsafeMutablePointer(mutating: pwszCommandLine), nil, nil, false,
                             CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP,
                             nil, nil, &StartupInformation, &ProcessInformation) else {
