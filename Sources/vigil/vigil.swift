@@ -63,6 +63,10 @@ internal struct Vigil: ParsableCommand {
   }
 
   public struct Stand: ParsableCommand {
+    public static var configuration: CommandConfiguration {
+      CommandConfiguration(abstract: "Stand vigil, running a given command.")
+    }
+
     @OptionGroup
     private var inhibition: SleepInhibitionOptions
 
