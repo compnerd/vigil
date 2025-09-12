@@ -99,3 +99,20 @@ internal struct Job: ~Copyable {
     }
   }
 }
+
+extension Vigil {
+  internal static var executable: String {
+    var dwSize: DWORD = 0
+    guard !QueryFullProcessImageNameW(GetCurrentProcess(), 0, nil, &dwSize),
+        GetLastError() == ERROR_INSUFFICIENT_BUFFER else {
+      return CommandLine.arguments[0]
+    }
+    return withUnsafeTemporaryAllocation(of: WCHAR.self, capacity: Int(dwSize)) { pBuffer in
+      var size = dwSize
+      guard QueryFullProcessImageNameW(GetCurrentProcess(), 0, pBuffer.baseAddress, &size) else {
+        return CommandLine.arguments[0]
+      }
+      return String(decoding: UnsafeBufferPointer(start: pBuffer.baseAddress, count: Int(size)), as: UTF16.self)
+    }
+  }
+}
