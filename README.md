@@ -2,13 +2,15 @@
 
 A Windows command-line tool that prevents your computer from going to sleep or turning off the display. Perfect for long-running tasks, presentations, or keeping your system active.
 
+**Note:** Running `vigil` without arguments defaults to the `stand` command, which requires a command to execute.
+
 ## What does vigil do?
 
 vigil temporarily overrides Windows power management settings to keep your computer awake. It offers three ways to prevent sleep:
 
 - **`vigil start`** — Start sleep prevention that runs until you manually stop it
 - **`vigil end`** — Stop a running vigil session
-- **`vigil stand`** — Prevent sleep while running a specific command
+- **`vigil stand`** — Prevent sleep while running a specific command (default command)
 
 ## Installation
 
@@ -42,6 +44,17 @@ vigil end
 vigil start --idle --timeout 7200
 ```
 
+### Run in background (daemon mode)
+
+```powershell
+# Start background sleep prevention for 1 hour
+vigil start --idle --timeout 3600 --daemonize
+
+# The process will run in background, you can close the terminal
+# To stop it early:
+vigil end
+```
+
 ### Prevent sleep while running a command
 
 ```powershell
@@ -63,6 +76,9 @@ vigil stand --display -- ffmpeg -i input.mp4 output.mkv
 ### Additional Options
 
 - `--timeout <seconds>` / `-t` — Automatically stop after specified seconds (only with `start`)
+- `--daemonize` / `-d` — Run the `start` command in the background (requires `--timeout`)
+
+**Note:** At least one sleep prevention mode (`--idle`, `--system`, or `--display`) must be specified.
 
 ## Common Scenarios
 
@@ -71,6 +87,13 @@ vigil stand --display -- ffmpeg -i input.mp4 output.mkv
 vigil start --idle
 # Run your download/upload
 vigil end
+```
+
+**Background download (daemon mode):**
+```powershell
+vigil start --idle --timeout 14400 --daemonize  # 4 hours in background
+# Close terminal, download continues
+vigil end  # Stop early if needed
 ```
 
 **Presentation or demo:**
@@ -111,3 +134,7 @@ vigil uses Windows power management APIs to temporarily change execution state:
 **--system flag has no effect:**
 - This flag only prevents sleep when on AC power
 - Check your power status in Windows settings
+
+**--daemonize requires timeout:**
+- Background execution needs a timeout to prevent runaway processes
+- Use `--timeout` with `--daemonize`
