@@ -27,8 +27,8 @@ jobs:
       - name: Setup Swift
         uses: compnerd/gha-setup-swift@main
         with:
-          swift-version: development
-          swift-build: DEVELOPMENT-SNAPSHOT-2025-08-27-a
+          swift-version: swift-6.3.1-release
+          swift-build: 6.3.1-RELEASE
           update-sdk-modules: true
 
       - working-directory: ${{ github.workspace }}/SourceCache/vigil
