@@ -111,6 +111,17 @@ internal struct Vigil: ParsableCommand {
               help: "Run command while preventing power management events. Use `--` before the command.")
     var command: [String]
 
+    private nonisolated(unsafe) static var ProcessInformation: PROCESS_INFORMATION!
+    private static let handler: @convention(c) (DWORD) -> WindowsBool = { dwCtrlType in
+      // If the inferior is created with `CREATE_NEW_PROCESS_GROUP`, then it
+      // will not receive `CTRL_C_EVENT` signals. In this case, we can send a
+      // `CTRL_BREAK_EVENT` instead, which is received by all processes in the
+      // console, including those in other process groups.
+      _ = GenerateConsoleCtrlEvent(DWORD(CTRL_BREAK_EVENT),
+                                   ProcessInformation.dwProcessId)
+      ExitProcess(STATUS_CONTROL_C_EXIT)
+    }
+
     public func run() throws {
       if command.isEmpty { throw CleanExit.helpRequest() }
 
@@ -120,16 +131,19 @@ internal struct Vigil: ParsableCommand {
       defer { PowerManager.restore() }
 
       let job = try Job.create()
-      let ProcessInformation = try job.launch(command)
+      Self.ProcessInformation = try job.launch(command)
       defer {
-        _ = CloseHandle(ProcessInformation.hThread)
-        _ = CloseHandle(ProcessInformation.hProcess)
+        _ = CloseHandle(Self.ProcessInformation.hThread)
+        _ = CloseHandle(Self.ProcessInformation.hProcess)
       }
+
+      _ = SetConsoleCtrlHandler(Self.handler, true)
+      defer { _ = SetConsoleCtrlHandler(Self.handler, false) }
 
       job.await()
 
       var dwExitCode = DWORD(bitPattern: -1)
-      _ = GetExitCodeProcess(ProcessInformation.hProcess, &dwExitCode)
+      _ = GetExitCodeProcess(Self.ProcessInformation.hProcess, &dwExitCode)
       ucrt.exit(CInt(bitPattern: dwExitCode))
     }
   }
